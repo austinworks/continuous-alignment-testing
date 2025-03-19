@@ -26,9 +26,36 @@ def get_all_developer_names(skills_data) -> set[str]:
 def get_developer_names_from_response(response) -> set[str]:
     return {developer["name"] for developer in response["developers"]}
 
+def list_acceptable_developers(skill_data, important_skills):
+    skill_threshold = 4
+    dev_list = []
+    for skill_name in important_skills:
+        skill = next((skill for skill in skill_data["skills"] if skill["name"] == skill_name), None)
+        if not skill:
+            continue
+        dev_list.extend([ developer_skill["developer"]["name"] for developer_skill in skill["developerSkills"]
+            if developer_skill["skillLevel"] >= skill_threshold])
+    return set(dev_list)
+
+def test_developer_fit():
+    skills_data = load_json_fixture("skills.json")
+
+    # Define expected developer sets
+    ios_devs = {"Alex Anderson", "Sam Thomas"}
+    swift_devs = {"Sam Thomas", "Alex Anderson"}
+    android_devs = {"Drew Anderson"}
+    kotlin_devs = {"Taylor Brown", "Drew Anderson", "Sam Miller", "Alex Johnson"}
+
+    # Test with each skill set
+    assert list_acceptable_developers(skills_data, ["iOS"]) == ios_devs
+    assert list_acceptable_developers(skills_data, ["Swift"]) == swift_devs
+    assert list_acceptable_developers(skills_data, ["Android"]) == android_devs
+    assert list_acceptable_developers(skills_data, ["Kotlin"]) == kotlin_devs
+    assert list_acceptable_developers(skills_data, ["Swift", "Android"]) == swift_devs.union(android_devs)
+
 
 def test_metrics_within_range(setup_openai_logger):
-    generations = Runner.get_sample_size()
+    generations = Runner.get_sample_size(10)
 
     skills_data = load_json_fixture("skills.json")
     example_output = load_json_fixture("example_output.json")
@@ -107,7 +134,8 @@ def generate_choices(generations, project_description, system_prompt) -> List[Ch
 
 
 def run_allocation_test(reporter: Reporter, skills_data, response: str) -> bool:
-    acceptable_people = ["Sam Thomas", "Drew Anderson", "Alex Wilson", "Alex Johnson"]
+    acceptable_people = list_acceptable_developers(skills_data, ["iOS", "Swift", "Android", "Kotlin"])
+    print("acceptable_people", acceptable_people)
     all_developers = get_all_developer_names(skills_data)
 
     schema = load_json_fixture("output_schema.json")
@@ -122,7 +150,7 @@ def run_allocation_test(reporter: Reporter, skills_data, response: str) -> bool:
         has_valid_json_schema = response_matches_json_schema(json_object, schema)
         developer_names = get_developer_names_from_response(json_object)
         not_empty_response = len(developer_names) != 0
-        developer_is_appropriate = any(name in developer_names for name in acceptable_people)
+        developer_is_appropriate = all(name in acceptable_people for name in developer_names)
         if not not_empty_response:
             no_developer_name_is_hallucinated = False not in [
                 name in all_developers for name in developer_names
