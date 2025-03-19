@@ -42,6 +42,7 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Check if GOOGLE_CREDENTIALS is set
+        if: github.ref_name == 'main'
         run: |
           if [ -z "${{ secrets.GOOGLE_CREDENTIALS }}" ]; then
             echo "Error: GOOGLE_CREDENTIALS secret is not set!"
@@ -49,6 +50,7 @@ jobs:
           fi
 
       - name: Authenticate to Google Cloud
+        if: github.ref_name == 'main'
         uses: google-github-actions/auth@v2
         with:
           credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
